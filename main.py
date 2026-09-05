@@ -65,9 +65,87 @@ def draw_palette(img, selected_colour):
     return img
 
 
+def select_camera():
+    """Allows the user to preview available cameras and choose one."""
+    available_indexes = []
+    for i in range(5):
+        test_cap = cv2.VideoCapture(i)
+        opened = test_cap.isOpened()
+        if opened:
+            frame_read, frame = test_cap.read()
+            if frame_read:
+                available_indexes.append(i)
+        test_cap.release()
+
+    if len(available_indexes) == 1:
+        return cv2.VideoCapture(available_indexes[0])
+
+    # if multiple cameras are found: let the user choose
+    curr_position = 0
+    chosen_index = None
+    print("Use left/right arrows to switch between cameras, ENTER to select, Q to quit.")
+
+    while chosen_index is None:
+        curr_idx = available_indexes[curr_position]
+        preview_cap = cv2.VideoCapture(curr_idx)
+
+        # camera warm up
+        for _ in range(5):
+            preview_cap.read()
+
+        switch_camera = False
+        while not switch_camera:
+            frame_read, frame = preview_cap.read()
+            if not frame_read:
+                break
+            frame = cv2.flip(frame, 1)
+            cv2.putText(
+                frame,
+                f"Camera {curr_idx + 1} ({curr_position + 1} of {len(available_indexes)})",
+                (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 255, 0),
+                2
+            )
+            cv2.putText(
+                frame,
+                "LEFT/RIGHT to switch, ENTER to select, Q to quit",
+                (20, 80),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2
+            )
+            cv2.imshow("Choose your camera", frame)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == 13:  # ENTER
+                cv2.destroyAllWindows()
+                return preview_cap
+            elif key == ord('q'):  # quit
+                preview_cap.release()
+                cv2.destroyAllWindows()
+                return None
+            elif key == 2:  # LEFT
+                curr_position = (curr_position - 1) % len(available_indexes)
+                switch_camera = True
+            elif key == 3:  # RIGHT
+                curr_position = (curr_position + 1) % len(available_indexes)
+                switch_camera = True
+
+        preview_cap.release()
+
+
 def main():
     # open camera
-    cap = cv2.VideoCapture(0)
+    cap = select_camera()
+    if cap is None:
+        print("No camera selected, exiting program.")
+        return
+    if not cap.isOpened():
+        print("ERROR: Could not open webcam. Check that a camera is open and is not being used by another application.")
+        return
 
     canvas = np.zeros((CAM_HEIGHT, CAM_WIDTH, 3), np.uint8)
     curr_colour = PALETTE[0][1]
