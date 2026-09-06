@@ -19,6 +19,7 @@ PALETTE = [
 ]
 BUTTON_WIDTH = CAM_WIDTH // len(PALETTE)
 BUTTON_HEIGHT = 80
+MAX_MISSED_FRAMES = 5
 
 # mediapipe setup
 mp_hands = mp.solutions.hands
@@ -155,6 +156,7 @@ def main():
     prev_y = 0
     smooth_x = 0
     smooth_y = 0
+    missed_frames = 0
     print("Whiteboard is running. Press Q to quit, C to clear, S to save.")
 
     while cap.isOpened():
@@ -169,6 +171,7 @@ def main():
 
         # checking for a detected hand and extracting landmarks
         if results.multi_hand_landmarks and results.multi_handedness:
+            missed_frames = 0
             hand_landmarks = results.multi_hand_landmarks[0]
             handedness_label = results.multi_handedness[0].classification[0].label
             landmarks = []
@@ -221,7 +224,9 @@ def main():
                 prev_x, prev_y = 0, 0
 
         else:  # no hand detected
-            prev_x, prev_y = 0, 0
+            missed_frames += 1
+            if missed_frames > MAX_MISSED_FRAMES:
+                prev_x, prev_y = 0, 0
 
         # merging canvas with live camera feed
         gray_canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)  # converts canvas to grayscale for easier comparison
