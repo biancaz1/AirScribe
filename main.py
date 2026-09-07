@@ -20,13 +20,13 @@ PALETTE = [
     ("Gray", (128, 128, 128)),
     ("Black", (0, 0, 0)),
     ("White", (255, 255, 255)),
-    ("Eraser", (0, 0, 0))  # black as placeholder
+    ("Eraser", (255, 255, 255))
 ]
 ERASER_MARKER = "ERASER"
 CIRCLE_RADIUS = 20
-CIRCLE_SPACING = 60
-CIRCLE_MARGIN_RIGHT = 70
-CIRCLE_MARGIN_TOP = 80
+CIRCLE_SPACING = 55
+CIRCLE_MARGIN_RIGHT = 50
+CIRCLE_MARGIN_TOP = 50
 MAX_MISSED_FRAMES = 3
 MSG_DURATION = 2  # seconds
 
@@ -36,8 +36,8 @@ mp_draw = mp.solutions.drawing_utils
 hands = mp_hands.Hands(
     static_image_mode=False,
     max_num_hands=1,
-    min_detection_confidence=0.7,
-    min_tracking_confidence=0.7
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
 )
 FINGERTIP_IDS = [4, 8, 12, 16, 20]  # thumb, index, middle, ring, pinky finger landmark IDs
 
@@ -105,7 +105,7 @@ def select_camera():
     # if multiple cameras are found: let the user choose
     curr_position = 0
     chosen_index = None
-    print("Use left/right arrows to switch between cameras, ENTER to select, Q to quit.")
+    print("I/O to switch camera, ENTER to select, Q to quit.")
 
     while chosen_index is None:
         curr_idx = available_indexes[curr_position]
@@ -132,7 +132,7 @@ def select_camera():
             )
             cv2.putText(
                 frame,
-                "LEFT/RIGHT to switch, ENTER to select, Q to quit",
+                "I/O to switch camera, ENTER to select, Q to quit",
                 (20, 80),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
@@ -149,10 +149,10 @@ def select_camera():
                 preview_cap.release()
                 cv2.destroyAllWindows()
                 return None
-            elif key == 2:  # LEFT
+            elif key == ord('i'):  # LEFT
                 curr_position = (curr_position - 1) % len(available_indexes)
                 switch_camera = True
-            elif key == 3:  # RIGHT
+            elif key == ord('o'):  # RIGHT
                 curr_position = (curr_position + 1) % len(available_indexes)
                 switch_camera = True
 
@@ -169,7 +169,8 @@ def main():
         print("ERROR: Could not open webcam. Check that a camera is open and is not being used by another application.")
         return
 
-    canvas = np.zeros((CAM_HEIGHT, CAM_WIDTH, 3), np.uint8)
+    canvas = np.full((CAM_HEIGHT, CAM_WIDTH, 3), 255, np.uint8)
+    drawn_mask = np.zeros((CAM_HEIGHT, CAM_WIDTH), np.uint8)
     curr_colour = PALETTE[0][1]
 
     prev_x = 0  # tracks previous fingertip position
@@ -235,11 +236,15 @@ def main():
                     prev_x, prev_y = smooth_x, smooth_y
                 if curr_colour == ERASER_MARKER:
                     thickness = ERASER_THICKNESS
-                    draw_colour = (0, 0, 0)
+                    draw_colour = (255, 255, 255)
                 else:
                     thickness = BRUSH_THICKNESS
                     draw_colour = curr_colour
                 cv2.line(canvas, (prev_x, prev_y), (smooth_x, smooth_y), draw_colour, thickness)
+                if curr_colour == ERASER_MARKER:
+                    cv2.line(drawn_mask, (prev_x, prev_y), (smooth_x, smooth_y), 0, thickness)
+                else:
+                    cv2.line(drawn_mask, (prev_x, prev_y), (smooth_x, smooth_y), 255, thickness)
                 prev_x, prev_y = smooth_x, smooth_y
                 if curr_colour == ERASER_MARKER:
                     cv2.circle(frame, (smooth_x, smooth_y), 10, (255, 255, 255), cv2.FILLED)
@@ -255,11 +260,9 @@ def main():
                 prev_x, prev_y = 0, 0
 
         # merging canvas with live camera feed
-        gray_canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)  # converts canvas to grayscale for easier comparison
-        _, mask = cv2.threshold(gray_canvas, 10, 255, cv2.THRESH_BINARY_INV)
-        mask_inv = cv2.bitwise_not(mask)
-        frame_bg = cv2.bitwise_and(frame, frame, mask=mask)
-        canvas_fg = cv2.bitwise_and(canvas, canvas, mask=mask_inv)
+        mask_inv = cv2.bitwise_not(drawn_mask)
+        frame_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
+        canvas_fg = cv2.bitwise_and(canvas, canvas, mask=drawn_mask)
         combined = cv2.add(frame_bg, canvas_fg)
         clean_combined = combined.copy()
         combined = draw_palette(combined, curr_colour)
@@ -295,12 +298,13 @@ def main():
         if key == ord('q'):
             break
         elif key == ord('c'):
-            canvas = np.zeros((CAM_HEIGHT, CAM_WIDTH, 3), np.uint8)
+            canvas = np.full((CAM_HEIGHT, CAM_WIDTH, 3), 255, np.uint8)
+            drawn_mask = np.zeros((CAM_HEIGHT, CAM_WIDTH), np.uint8)
         elif key == ord('s'):
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             output_path = os.path.join(os.getcwd(), f"camerafeed_{timestamp}.png")
             cv2.imwrite(output_path, clean_combined)
-            print(f"Saved camera feed to {output_path}")
+            print(f"Saved camera feed + canvas to {output_path}")
             img_saved_time = time.time()
         elif key == ord('w'):
             timestamp = time.strftime("%Y%m%d_%H%M%S")
