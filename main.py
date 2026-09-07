@@ -7,14 +7,19 @@ import os
 # setup
 CAM_WIDTH, CAM_HEIGHT = 1280, 720
 BRUSH_THICKNESS = 8
-ERASER_THICKNESS = 20
-SMOOTHING = 5  # higher smoothing = smoother but laggier line
+ERASER_THICKNESS = 40
+SMOOTHING = 3  # higher smoothing = smoother but laggier line
 PALETTE = [
     ("Red", (0, 0, 255)),
-    ("Green", (0, 255, 0)),
-    ("Blue", (255, 0, 0)),
+    ("Orange", (0, 140, 255)),
     ("Yellow", (0, 255, 255)),
-    ("Purple", (255, 0, 255)),
+    ("Green", (0, 255, 0)),
+    ("Dark Green", (0, 100, 0)),
+    ("Blue", (255, 144, 30)),
+    ("Purple", (226, 43, 138)),
+    ("Gray", (128, 128, 128)),
+    ("Black", (0, 0, 0)),
+    ("White", (255, 255, 255)),
     ("Eraser", (0, 0, 0))  # black as placeholder
 ]
 ERASER_MARKER = "ERASER"
@@ -23,6 +28,7 @@ CIRCLE_SPACING = 60
 CIRCLE_MARGIN_RIGHT = 70
 CIRCLE_MARGIN_TOP = 80
 MAX_MISSED_FRAMES = 3
+MSG_DURATION = 2  # seconds
 
 # mediapipe setup
 mp_hands = mp.solutions.hands
@@ -172,7 +178,8 @@ def main():
     smooth_y = 0
     missed_frames = 0
     prev_time = 0
-    print("Whiteboard is running. Press Q to quit, C to clear, S to save.")
+    img_saved_time = None
+    print("Whiteboard is running. Press Q to quit, C to clear, S to save, W to save whiteboard only.")
 
     while cap.isOpened():
         grabbed_frame, frame = cap.read()
@@ -254,6 +261,7 @@ def main():
         frame_bg = cv2.bitwise_and(frame, frame, mask=mask)
         canvas_fg = cv2.bitwise_and(canvas, canvas, mask=mask_inv)
         combined = cv2.add(frame_bg, canvas_fg)
+        clean_combined = combined.copy()
         combined = draw_palette(combined, curr_colour)
 
         # FPS counter
@@ -271,7 +279,7 @@ def main():
             (0, 255, 0),
             2
         )
-        controls_text = "Q to quit, S to save, C to clear"
+        controls_text = "Q to quit, C to clear, S to save, W to save whiteboard only"
         cv2.putText(
             combined,
             controls_text,
@@ -279,10 +287,8 @@ def main():
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (0, 255, 0),
-            2
+            2,
         )
-
-        cv2.imshow("Hand-Tracking Virtual Whiteboard", combined)
 
         # keyboard controls
         key = cv2.waitKey(1) & 0xFF
@@ -291,9 +297,34 @@ def main():
         elif key == ord('c'):
             canvas = np.zeros((CAM_HEIGHT, CAM_WIDTH, 3), np.uint8)
         elif key == ord('s'):
-            output_path = os.path.join(os.getcwd(), "whiteboard_output.png")
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            output_path = os.path.join(os.getcwd(), f"camerafeed_{timestamp}.png")
+            cv2.imwrite(output_path, clean_combined)
+            print(f"Saved camera feed to {output_path}")
+            img_saved_time = time.time()
+        elif key == ord('w'):
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            output_path = os.path.join(os.getcwd(), f"whiteboard_{timestamp}.png")
             cv2.imwrite(output_path, canvas)
             print(f"Saved canvas to {output_path}")
+            img_saved_time = time.time()
+
+        # display image saved message
+        if img_saved_time is not None:
+            if (time.time() - img_saved_time) < MSG_DURATION:
+                cv2.putText(
+                    combined,
+                    "Image saved",
+                    (20, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 0),
+                    2
+                )
+            else:
+                img_saved_time = None
+
+        cv2.imshow("Hand-Tracking Virtual Whiteboard", combined)
 
     cap.release()
     cv2.destroyAllWindows()
