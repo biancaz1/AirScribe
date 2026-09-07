@@ -7,7 +7,7 @@ import os
 # setup
 CAM_WIDTH, CAM_HEIGHT = 1280, 720
 BRUSH_THICKNESS = 8
-ERASER_THICKNESS = 60
+ERASER_THICKNESS = 20
 SMOOTHING = 5  # higher smoothing = smoother but laggier line
 PALETTE = [
     ("Red", (0, 0, 255)),
@@ -17,9 +17,12 @@ PALETTE = [
     ("Purple", (255, 0, 255)),
     ("Eraser", (0, 0, 0))  # black as placeholder
 ]
-BUTTON_WIDTH = CAM_WIDTH // len(PALETTE)
-BUTTON_HEIGHT = 80
-MAX_MISSED_FRAMES = 5
+ERASER_MARKER = "ERASER"
+CIRCLE_RADIUS = 20
+CIRCLE_SPACING = 60
+CIRCLE_MARGIN_RIGHT = 70
+CIRCLE_MARGIN_TOP = 80
+MAX_MISSED_FRAMES = 3
 
 # mediapipe setup
 mp_hands = mp.solutions.hands
@@ -50,19 +53,31 @@ def fingers_up(landmarks, handedness_label):
 def draw_palette(img, selected_colour):
     """Draws the colour buttons."""
     for i in range(len(PALETTE)):
-        button = PALETTE[i]
-        name, colour = button[0], button[1]
-        x1 = i * BUTTON_WIDTH
-        x2 = x1 + BUTTON_WIDTH
-        if name == "Eraser":
-            display_colour = (50, 50, 50)
-        else:
-            display_colour = colour
+        name, colour = PALETTE[i]
+        center_x = CAM_WIDTH - CIRCLE_MARGIN_RIGHT
+        center_y = CIRCLE_MARGIN_TOP + i * CIRCLE_SPACING
 
-        cv2.rectangle(img, (x1, 0), (x2, BUTTON_HEIGHT), display_colour, -1)
-        if name != "Eraser":
-            if colour == selected_colour:
-                cv2.rectangle(img, (x1, 0), (x2, BUTTON_HEIGHT), (255,255,255), 3)
+        if name == "Eraser":
+            cv2.circle(img, (center_x, center_y), CIRCLE_RADIUS, (60, 60 ,60), -1)
+            # eraser icon
+            icon_points = np.array(
+                [
+                    [center_x - 9, center_y - 3],
+                    [center_x + 5, center_y - 11],
+                    [center_x + 11, center_y - 3],
+                    [center_x - 3, center_y + 6]
+                ]
+            )
+            cv2.polylines(img, [icon_points], True, (255, 255, 255), 2)
+            cv2.line(img, (center_x - 4, center_y + 4), (center_x + 10, center_y - 5), (255, 255, 255), 1)
+            selected = (selected_colour == ERASER_MARKER)
+        else:
+            cv2.circle(img, (center_x, center_y), CIRCLE_RADIUS, colour, -1)
+            selected = (colour == selected_colour)
+
+        if selected:
+            cv2.circle(img, (center_x, center_y), CIRCLE_RADIUS + 6, (255, 255, 255), 4)
+
     return img
 
 
@@ -150,13 +165,13 @@ def main():
 
     canvas = np.zeros((CAM_HEIGHT, CAM_WIDTH, 3), np.uint8)
     curr_colour = PALETTE[0][1]
-    is_eraser = False
 
     prev_x = 0  # tracks previous fingertip position
     prev_y = 0
     smooth_x = 0
     smooth_y = 0
     missed_frames = 0
+    prev_time = 0
     print("Whiteboard is running. Press Q to quit, C to clear, S to save.")
 
     while cap.isOpened():
@@ -194,20 +209,24 @@ def main():
 
             if select_mode:
                 prev_x, prev_y = 0, 0  # lift pen
-                if smooth_y < BUTTON_HEIGHT:
-                    idx = min(smooth_x // BUTTON_WIDTH, len(PALETTE) - 1)
-                    name, colour = PALETTE[idx]
+                palette_left_edge = CAM_WIDTH - CIRCLE_MARGIN_RIGHT - CIRCLE_RADIUS - 20
+                if smooth_x > palette_left_edge:
+                    button_idx = round((smooth_y - CIRCLE_MARGIN_TOP) / CIRCLE_SPACING)
+                    if button_idx < 0:
+                        button_idx = 0
+                    if button_idx >= len(PALETTE):
+                        button_idx = len(PALETTE) - 1
+                    name, colour = PALETTE[button_idx]
                     if name == "Eraser":
-                        is_eraser = True
+                        curr_colour = ERASER_MARKER
                     else:
-                        is_eraser = False
                         curr_colour = colour
                 cv2.circle(frame, (smooth_x, smooth_y), 15, (255, 255, 255), 3)
 
             elif index_only and not open_palm:
                 if prev_x == 0 and prev_y == 0:
                     prev_x, prev_y = smooth_x, smooth_y
-                if is_eraser:
+                if curr_colour == ERASER_MARKER:
                     thickness = ERASER_THICKNESS
                     draw_colour = (0, 0, 0)
                 else:
@@ -215,7 +234,7 @@ def main():
                     draw_colour = curr_colour
                 cv2.line(canvas, (prev_x, prev_y), (smooth_x, smooth_y), draw_colour, thickness)
                 prev_x, prev_y = smooth_x, smooth_y
-                if is_eraser:
+                if curr_colour == ERASER_MARKER:
                     cv2.circle(frame, (smooth_x, smooth_y), 10, (255, 255, 255), cv2.FILLED)
                 else:
                     cv2.circle(frame, (smooth_x, smooth_y), 10, curr_colour, cv2.FILLED)
@@ -235,11 +254,33 @@ def main():
         frame_bg = cv2.bitwise_and(frame, frame, mask=mask)
         canvas_fg = cv2.bitwise_and(canvas, canvas, mask=mask_inv)
         combined = cv2.add(frame_bg, canvas_fg)
+        combined = draw_palette(combined, curr_colour)
 
-        if is_eraser:
-            combined = draw_palette(combined, None)
+        # FPS counter
+        curr_time = time.time()
+        if prev_time:
+            fps = int(1 / (curr_time - prev_time))
         else:
-            combined = draw_palette(combined, curr_colour)
+            fps = 0
+        prev_time = curr_time
+        cv2.putText(
+            combined,
+            f"FPS: {fps}", (10, CAM_HEIGHT - 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2
+        )
+        controls_text = "Q to quit, S to save, C to clear"
+        cv2.putText(
+            combined,
+            controls_text,
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            2
+        )
 
         cv2.imshow("Hand-Tracking Virtual Whiteboard", combined)
 
