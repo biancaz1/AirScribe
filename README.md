@@ -60,7 +60,18 @@ Upon starting the program, a picker window (with preview) will open if more than
 * s: save canvas + camera feed  
 * w: save canvas only  
 *Note: both save options generate uniquely timestamped filenames, so previous saves are never overwritten*
-  <img src="screenshots/s_demo.png" alt="Saved canvas + camera feed" width="400"><img src="screenshots/w_demo.png" alt="Saved canvas only" width="400">
+<table>
+  <tr>
+    <td align="center">
+      <img src="screenshots/s_demo.png" alt="Saved canvas + camera feed" width="350"><br>
+      <sub>Saved canvas + camera feed (<code>s</code> key)</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/w_demo.png" alt="Saved canvas only" width="350"><br>
+      <sub>Saved canvas only (<code>w</code> key)</sub>
+    </td>
+  </tr>
+</table>
 
 ### Customizing
 At the top of `main.py`:  
