@@ -5,6 +5,7 @@ A gesture-controlled virtual whiteboard, tracks your hand movements via webcam t
 
 <img src="screenshots/demo.png" alt="Live interface" width="500">
 
+
 ## Getting Started
 
 ### Prerequisites
@@ -41,6 +42,7 @@ A gesture-controlled virtual whiteboard, tracks your hand movements via webcam t
    python main.py
    ```
 
+
 ## Usage
 
 ### Camera
@@ -73,12 +75,14 @@ Upon starting the program, a picker window (with preview) will open if more than
   </tr>
 </table>
 
+
 ### Customizing
 At the top of `main.py`:  
 * `CAM_WIDTH / CAM_HEIGHT`: display resolution
 * `SMOOTHING`: higher smoothing values reduces shakiness in lines due to unsteady hands but increases lag between your finger and pen
 * `MAX_MISSED_FRAMES`: max number of consecutive frames without tracking a hand before the pen lifts
     + Used to avoid lines cutting off due to motion blur during quick movements
+
 
 ## Troubleshooting
 * **`AttributeError: module 'mediapipe' has no attribute 'solutions'`** &mdash; an incompatible mediapipe version got installed (usually
