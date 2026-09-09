@@ -7,7 +7,7 @@ A gesture-controlled virtual whiteboard, tracks your hand movements via webcam t
 
 ## Getting Started
 
-### Requirements
+### Prerequisites
 - Python 3.9 through 3.12 (MediaPipe does not support Python 3.13 and onwards)
 
 ### Installation
