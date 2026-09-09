@@ -67,7 +67,7 @@ At the top of `main.py`:
 * `CAM_WIDTH / CAM_HEIGHT`: display resolution
 * `SMOOTHING`: higher smoothing values reduces shakiness in lines due to unsteady hands but increases lag between your finger and pen
 * `MAX_MISSED_FRAMES`: max number of consecutive frames without tracking a hand before the pen lifts
-    + to avoid lines cutting off due to motion blur during quick movementse
+    + Used to avoid lines cutting off due to motion blur during quick movements
 
 ## Troubleshooting
 * **`AttributeError: module 'mediapipe' has no attribute 'solutions'`** &mdash; an incompatible mediapipe version got installed (usually
